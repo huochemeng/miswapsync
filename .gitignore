@@ -1,0 +1,25 @@
+.DS_Store
+.idea
+build/
+/local
+logs/
+/src/logs
+.VSCodeCounter/
+.history/
+.vscode/
+src/pkg/chain/scan/*.png
+src/pkg/chain/scan/*.jpg
+
+# Go 编译与测试产物
+*.exe             # Windows 可执行文件
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test            # `go test -c` 生成的测试二进制文件
+*.out             # go coverage 工具生成的文件
+*.prof            # pprof 性能分析文件
+
+# 临时目录
+tmp/              # 常见的临时文件目录
+.tmp/

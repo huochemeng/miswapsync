@@ -1,0 +1,55 @@
+package cmd
+
+import (
+	"MiSwapSync/config"
+	"context"
+	"fmt"
+	"github.com/spf13/cobra"
+	"log"
+	"sync"
+)
+
+var DaemonCmd = &cobra.Command{
+	Use:   "daemon",
+	Short: "sync mi swap order info",
+	Long:  "sync mi swap order info.",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("DaemonCMD run")
+		wg := &sync.WaitGroup{}
+		ctx := context.Background()
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		onSyncExit := make(chan error, 1)
+
+		if err := initSyncServer(ctx); err != nil {
+			onSyncExit <- err
+		} else {
+			wg.Add(1)
+			go func(ctx context.Context) {
+				defer wg.Done()
+
+			}(ctx)
+		}
+
+	},
+}
+
+func init() {
+	fmt.Printf("daemon init")
+	//子命令DaemonCmd添加到root命令
+	rootCmd.AddCommand(DaemonCmd)
+}
+
+// 初始化封装为独立函数
+func initSyncServer(ctx context.Context) error {
+	//初始化配置
+	cfg, err := config.UnmarshalCmdConfig()
+	if err != nil {
+		log.Fatal("Failed to unmarshall config, err: ", err)
+		return err
+	}
+	// TODO 初始化日志
+	_ = cfg
+	return nil
+}
