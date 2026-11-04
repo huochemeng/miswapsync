@@ -1,6 +1,7 @@
 package config
 
 import (
+	"MiSwapSync/stores/gdb"
 	"fmt"
 	"github.com/spf13/viper"
 )
@@ -8,8 +9,8 @@ import (
 type Config struct {
 	Monitor *Monitor `toml:"monitor" mapstructure:"monitor" json:"monitor"`
 	//Log         *logging.LogConf `toml:"log" mapstructure:"log" json:"log"`
-	Kv *KvConf `toml:"kv" mapstructure:"kv" json:"kv"`
-	//DB          *gdb.Config      `toml:"db" mapstructure:"db" json:"db"`
+	Kv          *KvConf     `toml:"kv" mapstructure:"kv" json:"kv"`
+	DB          *gdb.Config `toml:"db" mapstructure:"db" json:"db"`
 	AnkrCfg     AnkrCfg     `toml:"ankr_cfg" mapstructure:"ankr_cfg" json:"ankr_cfg"`
 	ChainCfg    ChainCfg    `toml:"chain_cfg" mapstructure:"chain_cfg" json:"chain_cfg"`
 	ContractCfg ContractCfg `toml:"contract_cfg" mapstructure:"contract_cfg" json:"contract_cfg"`
@@ -59,8 +60,7 @@ type LogLevel struct {
 	Utils    string `toml:"utils" json:"utils"`
 }
 
-// UnmarshalCmdConfig unmarshal conifg file
-// @params path: the path of config dir
+// UnmarshalCmdConfig unmarshal config file
 func UnmarshalCmdConfig() (*Config, error) {
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err

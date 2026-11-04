@@ -1,12 +1,18 @@
 package cmd
 
 import (
+	"MiSwapSync/chain/chainclient"
 	"MiSwapSync/config"
 	"MiSwapSync/service"
+	"MiSwapSync/stores/gdb"
+	"MiSwapSync/stores/xkv"
 	"context"
 	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
+	"github.com/zeromicro/go-zero/core/stores/cache"
+	"github.com/zeromicro/go-zero/core/stores/kv"
+	"github.com/zeromicro/go-zero/core/stores/redis"
 	"log/slog"
 	"net/http"
 	"os"
@@ -50,18 +56,56 @@ func runSyncServer(ctx context.Context, cfg *config.Config, onSyncExit chan<- er
 			}
 		}()
 	}
+
+	// 2. 初始化基础设施（在 goroutine 内同步执行，失败直接上报）
+	db, err := gdb.New(cfg.DB)
+	if err != nil {
+		slog.Error("Failed to init database", "error", err)
+		onSyncExit <- err
+		return
+	}
+
+	var kvConf kv.KvConf
+	//遍历redis的config，拼接切片信息，拿到redis的配置信息
+	for _, conn := range cfg.Kv.Redis {
+		kvConf = append(kvConf, cache.NodeConf{RedisConf: redis.RedisConf{
+			Host: conn.Host,
+			Type: conn.Type,
+			Pass: conn.Pass,
+		},
+			Weight: 2,
+		})
+	}
+	//获取redis连接信息
+	kvStore := xkv.NewStore(kvConf)
+
+	chainClient, err := chainclient.New(
+		int(cfg.ChainCfg.ID),
+		cfg.AnkrCfg.HttpsUrl+cfg.AnkrCfg.ApiKey,
+	)
+	if err != nil {
+		slog.Error("Failed to init chain client", "error", err)
+		onSyncExit <- err
+		return
+	}
 	// 启动核心业务服务
-	s, err := service.New(ctx, cfg)
+	s, err := service.New(ctx, cfg, db, kvStore, chainClient)
 	if err != nil {
 		slog.Error("Failed to create sync server", "error", err)
 		onSyncExit <- err
 		return
 	}
 
-	if err := s.Start(); err != nil {
+	if err := s.Start(ctx); err != nil {
 		slog.Error("Failed to start sync server", "error", err)
 		onSyncExit <- err
+		return
 	}
+
+	<-ctx.Done() // ← 保活：响应取消信号后才进入清理阶段
+	slog.Info("Sync server shutting down, waiting for services...")
+	s.WaitShutdown() // ← 在这里 Wait：确保所有子任务安全退出后再释放资源
+	slog.Info("All services gracefully stopped")
 }
 
 var DaemonCmd = &cobra.Command{
