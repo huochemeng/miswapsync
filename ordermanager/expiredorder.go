@@ -14,11 +14,6 @@ import (
 )
 
 const (
-	MaxBatchReqNum = 100
-	//maxQueueLength = 100
-)
-
-const (
 	Buy EventType = iota + 1
 	Mint
 	Listing

@@ -42,21 +42,24 @@ type wheel struct {
 	NotifyActivities *Order
 }
 
-//type OrderManager struct {
-//	chain        string
-//	TimeWheel    [WheelSize]wheel // 时间轮
-//	CurrentIndex int64            // current time wheel index
+//	type OrderManager struct {
+//		chain        string
+//		TimeWheel    [WheelSize]wheel // 时间轮
+//		CurrentIndex int64            // current time wheel index
 //
-//	//collectionOrders map[string]*collectionTradeInfo
+//		//collectionOrders map[string]*collectionTradeInfo
 //
-//	collectionListedCh chan string
-//	project            string
+//		collectionListedCh chan string
+//		project            string
 //
-//	Xkv *xkv.Store
-//	DB  *gorm.DB
-//	Mux *sync.RWMutex
-//}
-
+//		Xkv *xkv.Store
+//		DB  *gorm.DB
+//		Mux *sync.RWMutex
+//	}
+type collectionTradeInfo struct {
+	floorPrice decimal.Decimal
+	orders     *PriorityQueueMap // 优先级队列
+}
 type ListingInfo struct {
 	ExpireIn       int64           `json:"expire_in"`
 	OrderId        string          `json:"order_id"`
@@ -74,6 +77,7 @@ type OrderManager struct {
 	collectionListedCh chan string
 	timingWheel        *timingwheel.TimingWheel
 	taskCount          atomic.Int64 // 追踪时间轮中待处理任务总数
+	collectionOrders   map[string]*collectionTradeInfo
 }
 
 // NewOrderManager 创建 OrderManager 实例并启动时间轮
@@ -98,8 +102,8 @@ func NewOrderManager(
 func (om *OrderManager) Start(ctx context.Context) {
 	threading.GoSafe(func() { om.ListenNewListingLoop(ctx) }) // 处理新订单
 	threading.GoSafe(func() { om.orderExpiryProcess(ctx) })   // 处理订单过期状态
-	//threading.GoSafe(om.floorPriceProcess)    // 处理floorprice更新
-	//threading.GoSafe(om.listCountProcess)     // 处理listCount更新
+	threading.GoSafe(func() { om.floorPriceProcess(ctx) })    // 处理floor price更新
+	threading.GoSafe(func() { om.listCountProcess(ctx) })     // 处理listCount更新
 }
 
 func (om *OrderManager) ListenNewListingLoop(ctx context.Context) {

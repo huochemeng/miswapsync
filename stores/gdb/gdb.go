@@ -114,3 +114,19 @@ func GetMultiProjectOrderTableName(project string, chain string) string {
 	}
 
 }
+
+func GetMultiProjectItemTableName(project string, chain string) string {
+	if project == OrderBookDexProject {
+		return multi.ItemTableName(chain)
+	} else {
+		return ""
+	}
+}
+
+func GetMultiProjectCollectionTableName(project string, chain string) string {
+	if project == OrderBookDexProject {
+		return multi.CollectionTableName(chain)
+	} else {
+		return ""
+	}
+}
