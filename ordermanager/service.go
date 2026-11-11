@@ -108,6 +108,8 @@ func (om *OrderManager) Start(ctx context.Context) {
 
 func (om *OrderManager) ListenNewListingLoop(ctx context.Context) {
 	key := fmt.Sprintf(CacheOrdersQueuePre, om.chain)
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -125,7 +127,7 @@ func (om *OrderManager) ListenNewListingLoop(ctx context.Context) {
 			case <-ctx.Done():
 				slog.InfoContext(ctx, "ListenNewListingLoop stopped during backoff")
 				return
-			case <-time.After(1 * time.Second):
+			case <-ticker.C:
 			}
 			//time.Sleep(1 * time.Second)
 			continue
@@ -177,4 +179,26 @@ func (om *OrderManager) ListenNewListingLoop(ctx context.Context) {
 			om.addToOrderExpiryCheckQueue(time.Duration(delaySeconds)*time.Second, om.chain, listing.OrderId, listing.CollectionAddr)
 		}
 	}
+}
+
+func (om *OrderManager) AddToOrderManagerQueue(order *multi.Order) error {
+	if order.TokenId == "" {
+		return errors.New("order manger need token id")
+	}
+	rawInfo, err := json.Marshal(ListingInfo{
+		ExpireIn:       order.ExpireTime,
+		OrderId:        order.OrderID,
+		CollectionAddr: order.CollectionAddress,
+		TokenID:        order.TokenId,
+		Price:          order.Price,
+		Maker:          order.Maker,
+	})
+	if err != nil {
+		return err
+	}
+
+	if _, err := om.Xkv.Lpush(fmt.Sprintf(CacheOrdersQueuePre, om.chain), string(rawInfo)); err != nil {
+		return err
+	}
+	return nil
 }

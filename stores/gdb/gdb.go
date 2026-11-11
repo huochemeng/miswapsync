@@ -130,3 +130,11 @@ func GetMultiProjectCollectionTableName(project string, chain string) string {
 		return ""
 	}
 }
+
+func GetMultiProjectCollectionFloorPriceTableName(project string, chain string) string {
+	if project == OrderBookDexProject {
+		return multi.CollectionFloorPriceTableName(chain)
+	} else {
+		return ""
+	}
+}

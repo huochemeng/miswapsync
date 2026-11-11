@@ -3,10 +3,11 @@ package ordermanager
 import (
 	"MiSwapSync/stores/gdb"
 	"MiSwapSync/stores/gdb/multi"
+	"MiSwapSync/stores/xkv"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
 	"log/slog"
@@ -374,4 +375,34 @@ func (om *OrderManager) reloadCollectionOrders(ctx context.Context, address stri
 // genTradeEventsCacheKey 生成交易事件缓存 key
 func genTradeEventsCacheKey(chain string) string {
 	return fmt.Sprintf(CacheTradeEventsQueuePre, chain)
+}
+
+func AddUpdatePriceEvent(kv *xkv.Store, event *TradeEvent, chain string) error {
+	// 验证事件合法性
+	// 如果是非Transfer/ImportCollection/UpdateCollection事件,必须有OrderId
+	if event.EventType != Transfer && event.EventType != ImportCollection && event.EventType != UpdateCollection && event.OrderId == "" {
+		return errors.New("invalid update collection floor price. event order id is null")
+	}
+	// 如果是Listing事件,价格不能为0
+	if event.EventType == Listing && event.Price.IsZero() {
+		return errors.New("invalid update collection floor price. price is 0")
+	}
+	// 如果是Listing事件,必须有TokenID
+	if event.EventType == Listing && event.TokenID == "" {
+		return errors.New("invalid update collection floor price. token_id is null")
+	}
+
+	// 序列化事件
+	rawEvent, err := json.Marshal(event)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal event")
+	}
+
+	// 获取Redis队列key
+	key := genTradeEventsCacheKey(chain)
+	// 将事件添加到Redis队列
+	if _, err := kv.Rpush(key, string(rawEvent)); err != nil {
+		return errors.Wrap(err, "failed to push trade event to queue")
+	}
+	return nil
 }

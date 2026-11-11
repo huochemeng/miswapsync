@@ -1,10 +1,12 @@
 package service
 
 import (
+	"MiSwapSync/chain"
 	"MiSwapSync/chain/chainclient"
 	"MiSwapSync/config"
 	"MiSwapSync/ordermanager"
 	"MiSwapSync/service/collectionfilter"
+	"MiSwapSync/service/orderbookindex"
 	"MiSwapSync/stores/xkv"
 	"context"
 	"github.com/pkg/errors"
@@ -17,8 +19,8 @@ type Service struct {
 	db               *gorm.DB
 	collectionFilter *collectionfilter.Filter   //筛选器
 	orderManager     *ordermanager.OrderManager //订单管理
-	//orderbookSyncer  *orderbookindexer.Service	//数据解析
-	wg sync.WaitGroup
+	orderbookSyncer  *orderbookindex.Service    //数据解析
+	wg               sync.WaitGroup
 }
 
 /*
@@ -26,19 +28,30 @@ type Service struct {
 业务组件（Filter、Manager、Syncer）→ New() 内部创建（因为它们是 Service 的私有实现细节）
 */
 
-//New 新建
+// New 新建
 func New(ctx context.Context, cfg *config.Config, db *gorm.DB, kvStore *xkv.Store, chainClient chainclient.ChainClient) (*Service, error) {
 	//筛选器
 	filter := collectionfilter.New(db, cfg.ChainCfg.Name, cfg.ProjectCfg.Name)
 	//订单管理器
 	orderManager := ordermanager.NewOrderManager(db, cfg.ChainCfg.Name, cfg.ProjectCfg.Name)
-	//TODO 服务解析器
+	var orderBookSyncer *orderbookindex.Service
+	var err error
+	chainClient, err = chainclient.New(int(cfg.ChainCfg.ID), cfg.AnkrCfg.HttpsUrl+cfg.AnkrCfg.ApiKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create evm client")
+	}
 
+	switch cfg.ChainCfg.ID {
+	case chain.EthChainID, chain.OptimismChainID, chain.SepoliaChainID:
+		//参数对应的值 11155111 sepolia
+		orderBookSyncer = orderbookindex.New(ctx, cfg, db, kvStore, chainClient, cfg.ChainCfg.ID, cfg.ChainCfg.Name, orderManager)
+	}
 	return &Service{
 		db:               db,
 		kvStore:          kvStore,
 		collectionFilter: filter,
 		orderManager:     orderManager,
+		orderbookSyncer:  orderBookSyncer,
 	}, nil
 }
 
@@ -49,7 +62,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.wg.Add(2)
 	go func() {
 		defer s.wg.Done()
-		//TODO orderbookIndex服务启动,内部监听 ctx.Done()
+		s.orderbookSyncer.Start(ctx)
 	}()
 	go func() {
 		defer s.wg.Done()
